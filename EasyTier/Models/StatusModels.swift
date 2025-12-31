@@ -1,146 +1,5 @@
 import Foundation
 
-enum NetworkingMethod: Int, Codable, CaseIterable, Identifiable {
-    var id: Self { self }
-    case publicServer = 0
-    case manual = 1
-    case standalone = 2
-}
-
-struct PortForwardConfig: Codable, Hashable, Identifiable {
-    var id = UUID()
-    var bind_ip: String = ""
-    var bind_port: Int = 0
-    var dst_ip: String = ""
-    var dst_port: Int = 0
-    var proto: String = "tcp"
-    
-    private enum CodingKeys: String, CodingKey {
-        case bind_ip, bind_port, dst_ip, dst_port, proto
-    }
-}
-
-struct NetworkConfig: Codable, Identifiable {
-    var id: String { instance_id }
-    var instance_id: String
-
-    var dhcp: Bool
-    var virtual_ipv4: String
-    var network_length: Int
-    var hostname: String?
-    var network_name: String
-    var network_secret: String
-
-    var networking_method: NetworkingMethod
-
-    var public_server_url: String
-    var peer_urls: [String]
-
-    var proxy_cidrs: [String]
-
-    var enable_vpn_portal: Bool
-    var vpn_portal_listen_port: Int
-    var vpn_portal_client_network_addr: String
-    var vpn_portal_client_network_len: Int
-
-    var advanced_settings: Bool
-
-    var listener_urls: [String]
-    var latency_first: Bool
-
-    var dev_name: String
-
-    var use_smoltcp: Bool
-    var disable_ipv6: Bool
-    var enable_kcp_proxy: Bool
-    var disable_kcp_input: Bool
-    var enable_quic_proxy: Bool
-    var disable_quic_input: Bool
-    var disable_p2p: Bool
-    var p2p_only: Bool
-    var bind_device: Bool
-    var no_tun: Bool
-    var enable_exit_node: Bool
-    var relay_all_peer_rpc: Bool
-    var multi_thread: Bool
-    var proxy_forward_by_system: Bool
-    var disable_encryption: Bool
-    var disable_udp_hole_punching: Bool
-    var disable_sym_hole_punching: Bool
-
-    var enable_relay_network_whitelist: Bool
-    var relay_network_whitelist: [String]
-
-    var enable_manual_routes: Bool
-    var routes: [String]
-    
-    var port_forwards: [PortForwardConfig] = []
-
-    var exit_nodes: [String]
-
-    var enable_socks5: Bool
-    var socks5_port: Int
-
-    var mtu: Int?
-    var mapped_listeners: [String]
-
-    var enable_magic_dns: Bool
-    var enable_private_mode: Bool
-
-    static func defaultConfig() -> NetworkConfig {
-        return NetworkConfig(
-            instance_id: UUID().uuidString,
-            dhcp: true,
-            virtual_ipv4: "10.144.144.0",
-            network_length: 24,
-            hostname: nil,
-            network_name: "default",
-            network_secret: "",
-            networking_method: .publicServer,
-            public_server_url: "https://api.example.com",
-            peer_urls: [],
-            proxy_cidrs: [],
-            enable_vpn_portal: false,
-            vpn_portal_listen_port: 22022,
-            vpn_portal_client_network_addr: "10.144.144.0",
-            vpn_portal_client_network_len: 24,
-            advanced_settings: false,
-            listener_urls: ["tcp://0.0.0.0:11010", "udp://0.0.0.0:11010", "wg://0.0.0.0:11011"],
-            latency_first: false,
-            dev_name: "utun10",
-            use_smoltcp: false,
-            disable_ipv6: false,
-            enable_kcp_proxy: false,
-            disable_kcp_input: false,
-            enable_quic_proxy: false,
-            disable_quic_input: false,
-            disable_p2p: false,
-            p2p_only: false,
-            bind_device: false,
-            no_tun: false,
-            enable_exit_node: false,
-            relay_all_peer_rpc: false,
-            multi_thread: false,
-            proxy_forward_by_system: false,
-            disable_encryption: false,
-            disable_udp_hole_punching: false,
-            disable_sym_hole_punching: false,
-            enable_relay_network_whitelist: false,
-            relay_network_whitelist: [],
-            enable_manual_routes: false,
-            routes: [],
-            port_forwards: [],
-            exit_nodes: [],
-            enable_socks5: false,
-            socks5_port: 1080,
-            mtu: nil,
-            mapped_listeners: [],
-            enable_magic_dns: false,
-            enable_private_mode: false
-        )
-    }
-}
-
 struct NetworkInstance: Codable, Identifiable {
     var id: String { instance_id }
     var instance_id: String
@@ -251,7 +110,7 @@ struct PeerConnStats: Codable, Hashable {
     var tx_packets: Int
     var latency_us: Int
 }
-#if DEBUG
+
 extension Ipv4Addr {
     static func fromString(_ s: String) -> Ipv4Addr? {
         let components = s.split(separator: ".").compactMap { UInt32($0) }
@@ -261,6 +120,7 @@ extension Ipv4Addr {
     }
 }
 
+#if DEBUG
 extension NetworkInstance {
     static func mockInstance(id: String = "uuid-1") -> NetworkInstance {
         let myNodeInfo = NodeInfo(

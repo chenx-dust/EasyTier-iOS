@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct EasyTierApp: App {
@@ -6,5 +7,6 @@ struct EasyTierApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [ProfileSummary.self, NetworkProfile.self])
     }
 }

@@ -1,20 +1,28 @@
 import SwiftUI
+import SwiftData
 
 struct DashboardView: View {
-    @StateObject private var viewModel: DashboardViewModel
-    @State private var showNewNameAlert = false
-    @State private var showSheet = false
-    @State private var newNameInput = ""
+    @Environment(\.modelContext) var context
+    @Query(sort: \ProfileSummary.createdAt) var networks: [ProfileSummary]
 
-    init() {
-        _viewModel = StateObject(wrappedValue: DashboardViewModel())
-    }
+    @State var selectedProfile: ProfileSummary?
+    @State var isConnected = false
+    @State var isPending = false
 
     var body: some View {
         VStack {
             headerView
                 .padding([.horizontal, .top])
-            if (viewModel.selectedNetworkId == nil) {
+            if let profile = Binding($selectedProfile) {
+                ZStack {
+                    if isConnected {
+                        StatusView()
+                    } else {
+                        NetworkEditView(profile: profile.profile)
+                            .disabled(isPending)
+                    }
+                }
+            } else {
                 Spacer()
                 Image(systemName: "network.slash")
                     .resizable()
@@ -22,65 +30,86 @@ struct DashboardView: View {
                     .foregroundStyle(Color.accentColor)
                 Text("Please select a network.")
                 Spacer()
-            } else {
-                ZStack {
-                    NetworkEditView()
-                        .disabled(viewModel.isPending)
-                }
             }
         }
         .background(Color(.systemGroupedBackground))
+        .onAppear {
+            if selectedProfile == nil {
+                selectedProfile = networks.first
+            }
+        }
     }
+    
+    @State var showSheet = false
 
-    private var headerView: some View {
+    @State var showNewNetworkAlert = false
+    @State var newNetworkInput = ""
+    
+    @State var showRenameAlert = false
+    @State var renameInput = ""
+    @State var toRenameProfile: ProfileSummary?
+
+    var headerView: some View {
         HStack(spacing: 12) {
             Image(systemName: "chevron.up.chevron.down")
                 .onTapGesture {
                     showSheet = true
                 }
-            Text(viewModel.selectedNetwork?.name ?? "Select Network")
+            Text(selectedProfile?.name ?? "Select Network")
                 .font(.largeTitle.bold())
                 .onTapGesture {
                     showSheet = true
                 }
             Spacer()
-            Button(viewModel.isConnected ? "Disconnect" : "Connect", systemImage: viewModel.isConnected ? "cable.connector.slash" : "cable.connector") {
-                viewModel.isConnected = !viewModel.isConnected
+            Button(isConnected ? "Disconnect" : "Connect", systemImage: isConnected ? "cable.connector.slash" : "cable.connector") {
+                isConnected = !isConnected
             }
-            .disabled(viewModel.isPending || viewModel.selectedNetworkId == nil)
-            .buttonStyle(.glass)
-            .tint(viewModel.isConnected ? Color.red : Color.accentColor)
-            .animation(.interactiveSpring, value: viewModel.isConnected)
+            .disabled(isPending || selectedProfile == nil)
+            .buttonStyle(.glassProminent)
+            .tint(isConnected ? Color.red : Color.accentColor)
+            .animation(.interactiveSpring, value: isConnected)
         }
         .sheet(isPresented: $showSheet) {
             NavigationStack {
                 List {
                     Section("Network") {
-                        ForEach(viewModel.networks, id: \.self) { item in
+                        ForEach(networks, id: \.self) { item in
                             Button {
-                                viewModel.selectedNetworkId = item.id
+                                selectedProfile = item
                             } label: {
                                 HStack {
                                     Text(item.name)
                                         .foregroundColor(.primary)
                                     Spacer()
-                                    if viewModel.selectedNetworkId == item.id {
+                                    if selectedProfile == item {
                                         Image(systemName: "checkmark")
                                             .foregroundColor(.blue)
                                     }
                                 }
                             }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    toRenameProfile = item
+                                    showRenameAlert = true
+                                } label: {
+                                    Image(systemName: "pencil")
+                                    Text("Rename")
+                                }
+                                .tint(.orange)
+                            }
                         }
                         .onDelete { indexSet in
-                            viewModel.networks.remove(atOffsets: indexSet)
-                            if viewModel.selectedNetworkId == nil {
-                                viewModel.selectedNetworkId = viewModel.networks.first?.id
+                            for index in indexSet {
+                                if selectedProfile == networks[index] {
+                                    selectedProfile = nil
+                                }
+                                context.delete(networks[index])
                             }
                         }
                     }
                     Section("Manage") {
                         Button {
-                            showNewNameAlert = true
+                            showNewNetworkAlert = true
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "document.badge.plus")
@@ -113,12 +142,25 @@ struct DashboardView: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                .alert("New Network", isPresented: $showNewNameAlert) {
-                    TextField("Name of the new network", text: $newNameInput)
+                .alert("New Network", isPresented: $showNewNetworkAlert) {
+                    TextField("Name of the new network", text: $newNetworkInput)
                         .textInputAutocapitalization(.never)
                     Button(role: .cancel) { }
                     Button(role: .confirm) {
-                        viewModel.newNetwork(name: newNameInput)
+                        let profile = ProfileSummary(name: newNetworkInput.isEmpty ? "New Network" : newNetworkInput, context: context)
+                        context.insert(profile)
+                        selectedProfile = profile
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .alert("Rename Network", isPresented: $showRenameAlert) {
+                    TextField("New name of the network", text: $renameInput)
+                        .textInputAutocapitalization(.never)
+                    Button(role: .cancel) { }
+                    Button(role: .confirm) {
+                        if !renameInput.isEmpty && toRenameProfile != nil {
+                            toRenameProfile!.name = renameInput
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -130,5 +172,6 @@ struct DashboardView: View {
 struct DashboardView_Previews: PreviewProvider {
     static var previews: some View {
         DashboardView()
+            .modelContainer(try! ModelContainer(for: Schema([ProfileSummary.self, NetworkProfile.self]), configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
     }
 }

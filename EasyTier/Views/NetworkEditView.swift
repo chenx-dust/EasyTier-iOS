@@ -3,7 +3,9 @@ import SwiftUI
 struct NetworkEditView: View {
     @Binding var profile: NetworkProfile
     @State var sel = 0
-
+    @State private var isShowingCIDRManagement = false
+    @State private var useCIDR = false // 这里的状态是持久的
+    
     var body: some View {
         Form {
             basicSettings
@@ -16,7 +18,11 @@ struct NetworkEditView: View {
                 portForwardsSettings
             }
         }
+        .sheet(isPresented: $isShowingCIDRManagement) {
+            CIDRManagementView(useCIDR: $useCIDR, proxyCIDRs: $profile.proxy_cidrs)
+        }
     }
+
 
     private var basicSettings: some View {
         Group {
@@ -111,11 +117,6 @@ struct NetworkEditView: View {
                         .multilineTextAlignment(.trailing)
                 }
 
-                MultiLineTextField(
-                    title: "Proxy CIDRs",
-                    items: $profile.proxy_cidrs
-                )
-
                 Toggle(
                     "Enable VPN Portal",
                     isOn: $profile.enable_vpn_portal
@@ -207,6 +208,18 @@ struct NetworkEditView: View {
                     title: "Mapped Listeners",
                     items: $profile.mapped_listeners
                 )
+            }
+            
+            Section("Routing") {
+                Button(action: {
+                    useCIDR = !profile.proxy_cidrs.isEmpty
+                    isShowingCIDRManagement = true
+                }) {
+                    LabeledContent("Proxy CIDRs") {
+                        Text("\(profile.proxy_cidrs.count) items")
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Section("Feature") {
@@ -475,5 +488,151 @@ struct Advanced_Settings_Previews: PreviewProvider {
     static var previews: some View {
         @State var profile = NetworkProfile(id: UUID())
         NetworkEditView(profile: $profile).advancedSettings
+    }
+}
+
+struct CIDRManagementView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    @Binding var useCIDR: Bool          
+    @Binding var proxyCIDRs: [String]
+    
+    @State private var editingIndex: Int? = nil
+    @State private var isShowingEditor = false
+    @State private var newCIDRText = ""
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    Toggle("Use CIDR", isOn: $useCIDR)
+                }
+                
+                if useCIDR {
+                    Section("Saved CIDRs") {
+                        Button(action: {
+                            newCIDRText = ""
+                            editingIndex = nil
+                            isShowingEditor = true
+                        }) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Add Proxy CIDR")
+                            }
+                        }
+                        
+                        ForEach(proxyCIDRs, id: \.self) { cidr in
+                            Button(action: {
+                                newCIDRText = cidr
+                                editingIndex = proxyCIDRs.firstIndex(of: cidr)
+                                isShowingEditor = true
+                            }) {
+                                HStack {
+                                    Text(cidr)
+                                        .font(.system(.body, design: .monospaced))
+                                    Spacer()
+                                    Image(systemName: "pencil.circle")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .onDelete(perform: delete)
+                    }
+                }
+            }
+            .navigationTitle("Proxy CIDRs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $isShowingEditor) {
+                CIDREditView(fullText: $newCIDRText) { savedText in
+                    if let index = editingIndex {
+                        proxyCIDRs[index] = savedText
+                    } else {
+                        if !proxyCIDRs.contains(savedText) {
+                            proxyCIDRs.append(savedText)
+                        }
+                    }
+                    useCIDR = true
+                }
+            }
+        }
+    }
+
+    private func delete(at offsets: IndexSet) {
+        proxyCIDRs.remove(atOffsets: offsets)
+        if proxyCIDRs.isEmpty {
+            useCIDR = false
+        }
+    }
+}
+
+struct CIDREditView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    @Binding var fullText: String
+    var onSave: (String) -> Void
+
+    @State private var ipAddress: String = ""
+    @State private var prefixLength: Int = 24
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("CIDR Configuration")) {
+                    HStack {
+                        TextField("IPv4 Address", text: $ipAddress)
+                            .keyboardType(.numbersAndPunctuation)
+                            .autocapitalization(.none)
+                        
+                        Text("/")
+                            .foregroundColor(.secondary)
+                        
+                        TextField("Length", value: $prefixLength, formatter: NumberFormatter())
+                            .frame(width: 50)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                
+                Section(footer: Text("Example: 192.168.1.0 / 24")) {
+                    EmptyView()
+                }
+            }
+            .navigationTitle(fullText.isEmpty ? "Add CIDR" : "Edit CIDR")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        let combined = "\(ipAddress)/\(prefixLength)"
+                        onSave(combined)
+                        dismiss()
+                    }
+                    .disabled(ipAddress.isEmpty)
+                    .bold()
+                }
+            }
+            .onAppear {
+                parseCIDR()
+            }
+        }
+    }
+
+    private func parseCIDR() {
+        guard !fullText.isEmpty else { return }
+        
+        let components = fullText.components(separatedBy: "/")
+        if components.count == 2 {
+            ipAddress = components[0]
+            prefixLength = Int(components[1]) ?? 24
+        } else {
+            ipAddress = fullText
+        }
     }
 }

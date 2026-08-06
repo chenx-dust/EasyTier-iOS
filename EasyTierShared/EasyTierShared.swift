@@ -1,10 +1,44 @@
+import Foundation
 @preconcurrency import NetworkExtension
 import os
 
 public let APP_BUNDLE_ID: String = "cn.easytier"
-public let APP_GROUP_ID: String = "group.cn.easytier"
+public let DEFAULT_APP_GROUP_ID: String = "group.cn.easytier"
 public let ICLOUD_CONTAINER_ID: String = "iCloud.cn.easytier"
 public let LOG_FILENAME: String = "easytier.log"
+
+/// A re-signed build has its app group renamed rather than removed, so the compiled-in
+/// identifier stops matching and every container and shared-defaults lookup returns nil --
+/// silently, while the tunnel keeps working. Take the identifier from the provisioning
+/// profile in that case.
+private let resolvedAppGroup: (id: String, source: String, available: Bool) = {
+    let hasContainer = { (group: String) in
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) != nil
+    }
+    if hasContainer(DEFAULT_APP_GROUP_ID) {
+        return (DEFAULT_APP_GROUP_ID, "default", true)
+    }
+    // The profile is CMS-wrapped; its plist runs from the first <?xml to the last </plist>.
+    guard let profile = try? Data(contentsOf: Bundle.main.bundleURL
+            .appendingPathComponent("embedded.mobileprovision")),
+          let start = profile.range(of: Data("<?xml".utf8)),
+          let end = profile.range(of: Data("</plist>".utf8), options: .backwards),
+          let plist = (try? PropertyListSerialization.propertyList(
+              from: Data(profile[start.lowerBound..<end.upperBound]), options: [], format: nil
+          )) as? [String: Any],
+          let entitlements = plist["Entitlements"] as? [String: Any],
+          let groups = entitlements["com.apple.security.application-groups"] as? [String],
+          let usable = groups.first(where: hasContainer)
+    else {
+        return (DEFAULT_APP_GROUP_ID, "unresolved", false)
+    }
+    return (usable, "profile", true)
+}()
+
+public let APP_GROUP_ID: String = resolvedAppGroup.id
+/// Where APP_GROUP_ID came from, and whether it has a container, so a bug report can say so.
+public let APP_GROUP_SOURCE: String = resolvedAppGroup.source
+public let APP_GROUP_AVAILABLE: Bool = resolvedAppGroup.available
 
 public enum LogLevel: String, Codable, CaseIterable {
     case trace = "trace"

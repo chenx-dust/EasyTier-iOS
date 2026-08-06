@@ -60,6 +60,10 @@ func buildSettings(_ options: EasyTierOptions) -> NEPacketTunnelNetworkSettings 
 
 func buildIPv4Routes(info: RunningInfo?, options: EasyTierOptions) -> [NEIPv4Route] {
     var cidrs = Set<RunningIPv4CIDR>()
+    // Additive: manual routes used to replace the derived ones, which made every peer's
+    // proxied subnet unreachable as soon as one manual route existed. includedRoutes is the
+    // only way a route reaches the tun device here, so there is no system table to fall back
+    // on. The overlap pass below drops whatever is redundant.
     if !options.routes.isEmpty {
         logger.info("buildIPv4Routes() found manual routes: \(options.routes.count)")
         for route in options.routes {
@@ -67,28 +71,27 @@ func buildIPv4Routes(info: RunningInfo?, options: EasyTierOptions) -> [NEIPv4Rou
                 cidrs.insert(normalized)
             }
         }
-    } else {
-        if let routes = info?.routes {
-            for route in routes {
-                for cidr in route.proxyCIDRs {
-                    if let normalized = normalizeCIDR(cidr) {
-                        cidrs.insert(normalized)
-                    }
+    }
+    if let routes = info?.routes {
+        for route in routes {
+            for cidr in route.proxyCIDRs {
+                if let normalized = normalizeCIDR(cidr) {
+                    cidrs.insert(normalized)
                 }
             }
         }
-        if let ipv4 = options.ipv4, let cidr = RunningIPv4CIDR(from: ipv4) {
-            cidrs.insert(.init(address: ipv4MaskedSubnet(cidr), length: cidr.networkLength))
-        }
-        if let ipv4 = info?.myNodeInfo?.virtualIPv4 {
-            cidrs.insert(.init(address: ipv4MaskedSubnet(ipv4), length: ipv4.networkLength))
-        }
-        if options.magicDNS {
-            cidrs.insert(magicDNSCIDR)
-        }
-        if cidrs.isEmpty {
-            logger.warning("buildIPv4Routes() no routes")
-        }
+    }
+    if let ipv4 = options.ipv4, let cidr = RunningIPv4CIDR(from: ipv4) {
+        cidrs.insert(.init(address: ipv4MaskedSubnet(cidr), length: cidr.networkLength))
+    }
+    if let ipv4 = info?.myNodeInfo?.virtualIPv4 {
+        cidrs.insert(.init(address: ipv4MaskedSubnet(ipv4), length: ipv4.networkLength))
+    }
+    if options.magicDNS {
+        cidrs.insert(magicDNSCIDR)
+    }
+    if cidrs.isEmpty {
+        logger.warning("buildIPv4Routes() no routes")
     }
     var sortedCIDRs = Array(cidrs)
     sortedCIDRs.sort { $0.networkLength < $1.networkLength }

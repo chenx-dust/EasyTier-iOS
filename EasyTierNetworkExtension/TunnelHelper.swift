@@ -114,11 +114,15 @@ func setNonBlocking(fd: Int32) -> Bool {
 }
 
 func initRustLogger(level: LogLevel) {
-    guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP_ID) else {
-        logger.error("initRustLogger() failed: App Group container not found")
-        return
+    // Returning here left the core with no log at all, which is the only place that says
+    // whether it reached a relay. The extension's own sandbox is at least writable.
+    let containerURL = FileManager.default
+        .containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP_ID)
+    if containerURL == nil {
+        logger.error("initRustLogger() App Group container not found, using the sandbox")
     }
-    let path = containerURL.appendingPathComponent(LOG_FILENAME).path
+    let path = (containerURL ?? FileManager.default.temporaryDirectory)
+        .appendingPathComponent(LOG_FILENAME).path
     logger.info("initRustLogger() write to: \(path, privacy: .public)")
     
     var errPtr: UnsafePointer<CChar>? = nil

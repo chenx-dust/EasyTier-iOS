@@ -204,6 +204,7 @@ class NetworkExtensionManager: NetworkExtensionManagerProtocol {
         if let routes = config.routes {
             options.routes = routes
         }
+        options.exitNodes = config.exitNodes
         if let logLevel = UserDefaults.standard.string(forKey: "logLevel"),
            let logLevel = LogLevel.init(rawValue: logLevel) {
             options.logLevel = logLevel

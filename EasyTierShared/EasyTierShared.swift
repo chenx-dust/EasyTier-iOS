@@ -23,6 +23,9 @@ public struct EasyTierOptions: Codable {
     public var logLevel: LogLevel = .info
     public var magicDNS: Bool = false
     public var dns: [String] = []
+    /// Optional so an always-on tunnel can still reconnect on a blob an older build wrote:
+    /// a synthesised Decodable throws on a missing non-optional key.
+    public var exitNodes: [String]?
 
     public init() {}
 }

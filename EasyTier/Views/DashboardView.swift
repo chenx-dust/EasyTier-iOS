@@ -14,6 +14,21 @@ private struct ProfileTextDraft: Identifiable {
     let text: String
 }
 
+private struct EditModeAwareConfirmationButton: View {
+    @Environment(\.editMode) private var editMode
+
+    let action: () -> Void
+
+    var body: some View {
+        if editMode?.wrappedValue.isEditing != true {
+            Button(action: action) {
+                Image(systemName: "checkmark")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
 private struct ProfileTextEditor: View {
     @State private var text: String
 
@@ -56,12 +71,11 @@ struct DashboardView<Manager: NetworkExtensionManagerProtocol>: View {
     @ObservedObject var selectedSession: SelectedProfileSession
     
     @AppStorage("selectedProfileName", store: UserDefaults(suiteName: APP_GROUP_ID)) var lastSelected: String?
-    
+
     @State var currentProfile = NetworkProfile()
     @State var isLocalPending = false
 
     @State var showManageSheet = false
-
     @State var showNewNetworkAlert = false
     @State var newNetworkInput = ""
     @State var showEditConfigNameAlert = false
@@ -80,7 +94,7 @@ struct DashboardView<Manager: NetworkExtensionManagerProtocol>: View {
     @State var conflictDetails: String = ""
 
     @State var darwinObserver: DarwinNotificationObserver? = nil
-    @State private var autoSaveTask: Task<Void, Never>? = nil
+    @State var autoSaveTask: Task<Void, Never>? = nil
     
     init(manager: Manager, selectedSession: SelectedProfileSession) {
         _manager = ObservedObject(wrappedValue: manager)
@@ -296,12 +310,9 @@ struct DashboardView<Manager: NetworkExtensionManagerProtocol>: View {
             .adaptiveNavigationBarTitleInline()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button {
+                    EditModeAwareConfirmationButton {
                         showManageSheet = false
-                    } label: {
-                        Image(systemName: "checkmark")
                     }
-                    .buttonStyle(.borderedProminent)
                 }
             }
             .listEditingToolbar(

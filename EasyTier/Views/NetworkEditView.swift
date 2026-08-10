@@ -49,7 +49,6 @@ struct NetworkEditView: View {
             .formStyle(.grouped)
 #endif
         }
-        .listEditingToolbar(isVisible: !profile.peerConfigs.isEmpty)
     }
     
     var secondaryColumn: some View {

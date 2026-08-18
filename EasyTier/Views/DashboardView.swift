@@ -15,17 +15,26 @@ private struct ProfileTextDraft: Identifiable {
 }
 
 private struct EditModeAwareConfirmationButton: View {
+#if os(iOS)
     @Environment(\.editMode) private var editMode
+#endif
 
     let action: () -> Void
 
     var body: some View {
+#if os(iOS)
         if editMode?.wrappedValue.isEditing != true {
             Button(action: action) {
                 Image(systemName: "checkmark")
             }
             .buttonStyle(.borderedProminent)
         }
+#else
+        Button(action: action) {
+            Image(systemName: "checkmark")
+        }
+        .buttonStyle(.borderedProminent)
+#endif
     }
 }
 
